@@ -34,6 +34,7 @@ The following settings can be optionally configured:
   User should calculate this as `num_seconds * requests_per_second` where:
     - `num_seconds` is the number of seconds to buffer in case of a backend outage
     - `requests_per_second` is the average number of requests per seconds.
+- `enable_aggregation` (default = false) enables kpl aggregation to achieve high write throughput see [aws docs](https://docs.aws.amazon.com/streams/latest/dev/developing-producers-with-kpl.html) for more information on KPL aggregation.
 
 Example Configuration:
 

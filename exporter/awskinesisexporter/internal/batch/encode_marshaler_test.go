@@ -114,7 +114,9 @@ func TestMarshalEncoder_Metrics(t *testing.T) {
 			assert.NoError(t, err, "Must not have return an error processing data")
 			require.NotNil(t, bt, "Must have a valid batch")
 
-			assert.Len(t, bt.Chunk(), tc.expectedChunks, "Must have provided the expected chunk amount")
+			chunks, err := bt.Chunk()
+			assert.NoError(t, err, "Must not have return an error processing data")
+			assert.Len(t, chunks, tc.expectedChunks, "Must have provided the expected chunk amount")
 		})
 	}
 }
@@ -203,7 +205,9 @@ func TestMarshalEncoder_Traces(t *testing.T) {
 			assert.NoError(t, err, "Must not have return an error processing data")
 			require.NotNil(t, bt, "Must have a valid batch")
 
-			assert.Len(t, bt.Chunk(), tc.expectedChunks, "Must have provided the expected chunk amount")
+			chunks, err := bt.Chunk()
+			assert.NoError(t, err, "Must not have return an error processing data")
+			assert.Len(t, chunks, tc.expectedChunks, "Must have provided the expected chunk amount")
 		})
 	}
 }
@@ -299,7 +303,9 @@ func TestMarshalEncoder_Logs(t *testing.T) {
 			assert.NoError(t, err, "Must not have return an error processing data")
 			require.NotNil(t, bt, "Must have a valid batch")
 
-			assert.Len(t, bt.Chunk(), tc.expectedChunks, "Must have provided the expected chunk amount")
+			chunks, err := bt.Chunk()
+			assert.NoError(t, err, "Must not have return an error processing data")
+			assert.Len(t, chunks, tc.expectedChunks, "Must have provided the expected chunk amount")
 		})
 	}
 }

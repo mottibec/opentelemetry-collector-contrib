@@ -80,6 +80,7 @@ func createExporter(c config.Exporter, log *zap.Logger) (*Exporter, error) {
 		batch.WithMaxRecordSize(conf.MaxRecordSize),
 		batch.WithMaxRecordsPerBatch(conf.MaxRecordsPerBatch),
 		batch.WithCompression(compressor),
+		batch.WithAggregation(conf.EnableAggregation),
 	)
 
 	if err != nil {

@@ -32,7 +32,8 @@ func TestBatchingMessages(t *testing.T) {
 		assert.NoError(t, b.AddRecord([]byte("foobar"), "fixed-string"), "Must not error when adding elements into the batch")
 	}
 
-	chunk := b.Chunk()
+	chunk, err := b.Chunk()
+	assert.NoError(t, err, "Must not have return an error processing data")
 	for _, records := range chunk {
 		for _, record := range records {
 			assert.Equal(t, []byte("foobar"), record.Data, "Must have the expected record value")
@@ -57,7 +58,9 @@ func TestCustomBatchSizeConstraints(t *testing.T) {
 	for i := 0; i < records; i++ {
 		assert.NoError(t, b.AddRecord([]byte("foobar"), "fixed-string"), "Must not error when adding elements into the batch")
 	}
-	assert.Len(t, b.Chunk(), records, "Must have one batch per record added")
+	chunks, err := b.Chunk()
+	assert.NoError(t, err, "Must not have return an error processing data")
+	assert.Len(t, chunks, records, "Must have one batch per record added")
 }
 
 func TestBatchWithAggregation(t *testing.T) {
@@ -70,7 +73,8 @@ func TestBatchWithAggregation(t *testing.T) {
 		assert.NoError(t, b.AddRecord(randomBytes, "fixed-string"), "Must not error when adding elements into the batch")
 	}
 
-	chunk := b.Chunk()
+	chunk, err := b.Chunk()
+	assert.NoError(t, err, "Must not have return an error processing data")
 	assert.Len(t, chunk, 1, "Must have split the batch into two chunks")
 	assert.Error(t, b.AddRecord(nil, "fixed-string"), "Must error when invalid record provided")
 	assert.Error(t, b.AddRecord([]byte("some data that is very important"), ""), "Must error when invalid partition key provided")
@@ -86,7 +90,8 @@ func TestBatchWithAggregation_maxRecordSize(t *testing.T) {
 		assert.NoError(t, b.AddRecord(randomBytes, "fixed-string"), "Must not error when adding elements into the batch")
 	}
 
-	chunk := b.Chunk()
+	chunk, err := b.Chunk()
+	assert.NoError(t, err, "Must not have return an error processing data")
 	assert.Len(t, chunk, 2, "Must have split the batch into two chunks")
 	assert.Error(t, b.AddRecord(nil, "fixed-string"), "Must error when invalid record provided")
 	assert.Error(t, b.AddRecord([]byte("some data that is very important"), ""), "Must error when invalid partition key provided")
@@ -101,6 +106,8 @@ func BenchmarkChunkingRecords(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		assert.Len(b, bt.Chunk(), 2, "Must have exactly two chunks")
+		chunk, err := bt.Chunk()
+		assert.NoError(b, err, "Must not have return an error processing data")
+		assert.Len(b, chunk, 2, "Must have exactly two chunks")
 	}
 }

@@ -16,7 +16,8 @@ package batch // import "github.com/open-telemetry/opentelemetry-collector-contr
 
 import (
 	"errors"
-	"log"
+
+	"go.uber.org/zap"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/kinesis" //nolint:staticcheck // Some encoding types uses legacy prototype version
@@ -43,9 +44,9 @@ type Batch struct {
 
 	compression compress.Compressor
 
-	records        []*kinesis.PutRecordsRequestEntry
-	useAggregation bool
-	aggregator     *Aggregator
+	records    []*kinesis.PutRecordsRequestEntry
+	aggregator Aggregator
+	logger     *zap.Logger
 }
 
 type Option func(bt *Batch)
@@ -59,10 +60,11 @@ func WithMaxRecordsPerBatch(limit int) Option {
 	}
 }
 
-func WithAggregation(useKplAggregation bool) Option {
+func WithAggregation(enableAggregation bool) Option {
 	return func(bt *Batch) {
-		bt.useAggregation = useKplAggregation
-		bt.aggregator = new(Aggregator)
+		if enableAggregation {
+			bt.aggregator = NewAggregator()
+		}
 	}
 }
 
@@ -88,7 +90,9 @@ func New(opts ...Option) *Batch {
 		maxBatchSize:  MaxBatchedRecords,
 		maxRecordSize: MaxRecordSize,
 		compression:   compress.NewNoopCompressor(),
+		aggregator:    NewNoopAggregator(),
 		records:       make([]*kinesis.PutRecordsRequestEntry, 0, MaxRecordSize),
+		logger:        zap.NewNop(),
 	}
 
 	for _, op := range opts {
@@ -112,11 +116,11 @@ func (b *Batch) AddRecord(raw []byte, key string) error {
 		return ErrRecordLength
 	}
 
-	if b.useAggregation && b.aggregator.IsRecordAggregative(compressed, key) {
-		if b.aggregator.IsBatchFull(compressed, key) {
+	if b.aggregator.IsRecordAggregative(compressed, key) {
+		if b.aggregator.CheckIfFull(compressed, key) {
 			record, err := b.aggregator.Drain()
 			if err != nil {
-				log.Fatal(err)
+				return err
 			}
 			if record != nil {
 				b.records = append(b.records, record)
@@ -130,23 +134,19 @@ func (b *Batch) AddRecord(raw []byte, key string) error {
 	return nil
 }
 
-func (b *Batch) Close() {
-	if !b.useAggregation {
-		return
-	}
-	record, err := b.aggregator.Drain()
-	if err != nil {
-		log.Fatal(err)
-	}
-	b.records = append(b.records, record)
-}
-
 // Chunk breaks up the iternal queue into blocks that can be used
 // to be written to he kinesis.PutRecords endpoint
-func (b *Batch) Chunk() (chunks [][]*kinesis.PutRecordsRequestEntry) {
-	// Using local copies to avoid mutating internal data
-	b.Close()
+func (b *Batch) Chunk() (chunks [][]*kinesis.PutRecordsRequestEntry, err error) {
 
+	record, err := b.aggregator.Drain()
+	if err != nil {
+		return nil, err
+	}
+	if record != nil {
+		b.records = append(b.records, record)
+	}
+
+	// Using local copies to avoid mutating internal data
 	var (
 		slice = b.records
 		size  = b.maxBatchSize
@@ -158,5 +158,5 @@ func (b *Batch) Chunk() (chunks [][]*kinesis.PutRecordsRequestEntry) {
 		chunks = append(chunks, slice[0:size])
 		slice = slice[size:]
 	}
-	return chunks
+	return chunks, nil
 }
