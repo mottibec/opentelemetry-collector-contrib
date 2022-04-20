@@ -82,6 +82,6 @@ func (a *aggregator) Drain() (*kinesis.PutRecordsRequestEntry, error) {
 
 func (a *aggregator) clear() {
 	a.records = a.records[:0]
-	a.partitionKeys = make([]string, 0)
+	a.partitionKeys = a.partitionKeys[:0]
 	a.bytesCount = 0
 }
