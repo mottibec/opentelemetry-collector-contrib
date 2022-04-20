@@ -103,48 +103,20 @@ func New(opts ...Option) *Batch {
 }
 
 func (b *Batch) AddRecord(raw []byte, key string) error {
-	compressed, err := b.compression.Do(raw)
-	if err != nil {
-		return err
-	}
-
 	if l := len(key); l == 0 || l > 256 {
 		return ErrPartitionKeyLength
 	}
 
-	if l := len(compressed); l == 0 || l > b.maxRecordSize {
+	if l := len(raw); l == 0 || l > b.maxRecordSize {
 		return ErrRecordLength
 	}
-
-	if b.aggregator.IsRecordAggregative(compressed, key) {
-		if b.aggregator.CheckIfFull(compressed, key) {
-			record, err := b.aggregator.Drain()
-			if err != nil {
-				return err
-			}
-			if record != nil {
-				b.records = append(b.records, record)
-			}
-		} else {
-			b.aggregator.Put(compressed, key)
-		}
-	} else {
-		b.records = append(b.records, &kinesis.PutRecordsRequestEntry{Data: compressed, PartitionKey: aws.String(key)})
-	}
+	b.records = append(b.records, &kinesis.PutRecordsRequestEntry{Data: raw, PartitionKey: aws.String(key)})
 	return nil
 }
 
 // Chunk breaks up the iternal queue into blocks that can be used
 // to be written to he kinesis.PutRecords endpoint
 func (b *Batch) Chunk() (chunks [][]*kinesis.PutRecordsRequestEntry, err error) {
-
-	record, err := b.aggregator.Drain()
-	if err != nil {
-		return nil, err
-	}
-	if record != nil {
-		b.records = append(b.records, record)
-	}
 
 	// Using local copies to avoid mutating internal data
 	var (

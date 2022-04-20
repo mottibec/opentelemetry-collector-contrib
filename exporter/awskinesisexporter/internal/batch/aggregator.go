@@ -3,7 +3,6 @@ package batch
 import (
 	"crypto/md5"
 
-	"github.com/aws/aws-sdk-go/service/kinesis"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -16,10 +15,8 @@ const (
 )
 
 type Aggregator interface {
-	Drain() (*kinesis.PutRecordsRequestEntry, error)
-	Put(data []byte, partitionKey string)
-	IsRecordAggregative(data []byte, partitionKey string) bool
-	CheckIfFull(data []byte, partitionKey string) bool
+	Put(data []byte, partitionKey string) ([]byte, error)
+	Drain() ([]byte, error)
 }
 
 type aggregator struct {
@@ -32,16 +29,16 @@ func NewAggregator() Aggregator {
 	return &aggregator{}
 }
 
-func (a *aggregator) IsRecordAggregative(data []byte, partitionKey string) bool {
+func (a *aggregator) isRecordAggregative(data []byte, partitionKey string) bool {
 	return len(data)+len([]byte(partitionKey)) <= maxRecordSize
 }
 
-func (a *aggregator) CheckIfFull(data []byte, partitionKey string) bool {
+func (a *aggregator) checkIfFull(data []byte, partitionKey string) bool {
 	bytesCount := len(data) + len([]byte(partitionKey))
 	return bytesCount+a.bytesCount+md5.Size+len(magicNumber)+partitionKeyIndexSize > maxRecordSize || len(a.records) >= maxAggregationCount
 }
 
-func (a *aggregator) Put(data []byte, partitionKey string) {
+func (a *aggregator) aggregate(data []byte, partitionKey string) {
 	if len(a.partitionKeys) == 0 {
 		a.partitionKeys = []string{partitionKey}
 		a.bytesCount += len([]byte(partitionKey))
@@ -56,7 +53,25 @@ func (a *aggregator) Put(data []byte, partitionKey string) {
 	a.bytesCount += len(data)
 }
 
-func (a *aggregator) Drain() (*kinesis.PutRecordsRequestEntry, error) {
+func (a *aggregator) Put(data []byte, partitionKey string) ([]byte, error) {
+	if a.isRecordAggregative(data, partitionKey) {
+		if a.checkIfFull(data, partitionKey) {
+			record, err := a.Drain()
+			if err != nil {
+				return nil, err
+			}
+			if record != nil {
+				return record, nil
+			}
+		} else {
+			a.aggregate(data, partitionKey)
+			return nil, nil
+		}
+	}
+	return data, nil
+}
+
+func (a *aggregator) Drain() ([]byte, error) {
 	if a.bytesCount == 0 {
 		return nil, nil
 	}
@@ -72,12 +87,8 @@ func (a *aggregator) Drain() (*kinesis.PutRecordsRequestEntry, error) {
 	checkSum := h.Sum(nil)
 	aggData := append(magicNumber, data...)
 	aggData = append(aggData, checkSum...)
-	entry := &kinesis.PutRecordsRequestEntry{
-		Data:         aggData,
-		PartitionKey: &a.partitionKeys[0],
-	}
-	a.clear()
-	return entry, nil
+	defer a.clear()
+	return aggData, nil
 }
 
 func (a *aggregator) clear() {

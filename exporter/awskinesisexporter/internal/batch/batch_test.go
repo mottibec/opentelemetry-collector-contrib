@@ -17,8 +17,6 @@ package batch_test
 import (
 	"testing"
 
-	"math/rand"
-
 	"github.com/stretchr/testify/assert"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awskinesisexporter/internal/batch"
@@ -61,40 +59,6 @@ func TestCustomBatchSizeConstraints(t *testing.T) {
 	chunks, err := b.Chunk()
 	assert.NoError(t, err, "Must not have return an error processing data")
 	assert.Len(t, chunks, records, "Must have one batch per record added")
-}
-
-func TestBatchWithAggregation(t *testing.T) {
-	b := batch.New(batch.WithAggregation(true))
-
-	recordCount := 948
-	for i := 0; i < recordCount; i++ {
-		randomBytes := make([]byte, 1<<20/2)
-		rand.Read(randomBytes)
-		assert.NoError(t, b.AddRecord(randomBytes, "fixed-string"), "Must not error when adding elements into the batch")
-	}
-
-	chunk, err := b.Chunk()
-	assert.NoError(t, err, "Must not have return an error processing data")
-	assert.Len(t, chunk, 1, "Must have split the batch into two chunks")
-	assert.Error(t, b.AddRecord(nil, "fixed-string"), "Must error when invalid record provided")
-	assert.Error(t, b.AddRecord([]byte("some data that is very important"), ""), "Must error when invalid partition key provided")
-}
-
-func TestBatchWithAggregation_maxRecordSize(t *testing.T) {
-	b := batch.New(batch.WithAggregation(true))
-
-	recordCount := 948
-	for i := 0; i < recordCount; i++ {
-		randomBytes := make([]byte, 1<<20)
-		rand.Read(randomBytes)
-		assert.NoError(t, b.AddRecord(randomBytes, "fixed-string"), "Must not error when adding elements into the batch")
-	}
-
-	chunk, err := b.Chunk()
-	assert.NoError(t, err, "Must not have return an error processing data")
-	assert.Len(t, chunk, 2, "Must have split the batch into two chunks")
-	assert.Error(t, b.AddRecord(nil, "fixed-string"), "Must error when invalid record provided")
-	assert.Error(t, b.AddRecord([]byte("some data that is very important"), ""), "Must error when invalid partition key provided")
 }
 
 func BenchmarkChunkingRecords(b *testing.B) {

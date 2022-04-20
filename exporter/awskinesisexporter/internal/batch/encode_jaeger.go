@@ -47,6 +47,7 @@ func (je jaegerEncoder) Traces(td pdata.Traces) (*Batch, error) {
 	bt := New(je.batchOptions...)
 
 	var errs error
+	records := make([][]byte, 0)
 	for _, trace := range traces {
 		for _, span := range trace.GetSpans() {
 			if span.Process == nil {
@@ -57,8 +58,25 @@ func (je jaegerEncoder) Traces(td pdata.Traces) (*Batch, error) {
 				errs = multierr.Append(errs, err)
 				continue
 			}
-			errs = multierr.Append(errs, bt.AddRecord(data, partitionByTraceID(span)))
+			compressed, compressionErr := bt.compression.Do(data)
+			if compressionErr != nil {
+				errs = multierr.Append(errs, compressionErr)
+			}
+
+			record, e := bt.aggregator.Put(compressed, partitionByTraceID(span))
+			if e != nil {
+				errs = multierr.Append(errs, e)
+			}
+			if record != nil {
+				records = append(records, record)
+			}
 		}
+	}
+
+	for i := 0; i < len(records); i++ {
+		data := records[i]
+		var span interface{}
+		errs = multierr.Append(errs, bt.AddRecord(data, partitionByTraceID(span)))
 	}
 
 	return bt, errs

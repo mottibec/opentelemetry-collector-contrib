@@ -44,6 +44,7 @@ func (bm *batchMarshaller) Logs(ld pdata.Logs) (*Batch, error) {
 
 	export := pdata.NewLogs()
 	export.ResourceLogs().AppendEmpty()
+	records := make([][]byte, 0)
 
 	var errs error
 	for i := 0; i < ld.ResourceLogs().Len(); i++ {
@@ -59,6 +60,22 @@ func (bm *batchMarshaller) Logs(ld pdata.Logs) (*Batch, error) {
 			continue
 		}
 
+		compressed, compressionErr := bt.compression.Do(data)
+		if compressionErr != nil {
+			errs = multierr.Append(errs, consumererror.NewLogs(compressionErr, export.Clone()))
+		}
+
+		record, e := bt.aggregator.Put(compressed, bm.partitioner(export))
+		if e != nil {
+			errs = multierr.Append(errs, consumererror.NewLogs(e, export.Clone()))
+		}
+		if record != nil {
+			records = append(records, record)
+		}
+	}
+
+	for i := 0; i < len(records); i++ {
+		data := records[i]
 		if err := bt.AddRecord(data, bm.partitioner(export)); err != nil {
 			errs = multierr.Append(errs, consumererror.NewLogs(err, export.Clone()))
 		}
@@ -76,6 +93,7 @@ func (bm *batchMarshaller) Traces(td pdata.Traces) (*Batch, error) {
 
 	export := pdata.NewTraces()
 	export.ResourceSpans().AppendEmpty()
+	records := make([][]byte, 0)
 
 	var errs error
 	for i := 0; i < td.ResourceSpans().Len(); i++ {
@@ -91,7 +109,23 @@ func (bm *batchMarshaller) Traces(td pdata.Traces) (*Batch, error) {
 			continue
 		}
 
-		if err := bt.AddRecord(data, bm.partitioner(span)); err != nil {
+		compressed, compressionErr := bt.compression.Do(data)
+		if compressionErr != nil {
+			errs = multierr.Append(errs, consumererror.NewTraces(compressionErr, export.Clone()))
+		}
+
+		record, e := bt.aggregator.Put(compressed, bm.partitioner(export))
+		if e != nil {
+			errs = multierr.Append(errs, consumererror.NewTraces(e, export.Clone()))
+		}
+		if record != nil {
+			records = append(records, record)
+		}
+	}
+
+	for i := 0; i < len(records); i++ {
+		data := records[i]
+		if err := bt.AddRecord(data, bm.partitioner(export)); err != nil {
 			errs = multierr.Append(errs, consumererror.NewTraces(err, export.Clone()))
 		}
 	}
@@ -108,6 +142,7 @@ func (bm *batchMarshaller) Metrics(md pdata.Metrics) (*Batch, error) {
 
 	export := pdata.NewMetrics()
 	export.ResourceMetrics().AppendEmpty()
+	records := make([][]byte, 0)
 
 	var errs error
 	for i := 0; i < md.ResourceMetrics().Len(); i++ {
@@ -123,6 +158,22 @@ func (bm *batchMarshaller) Metrics(md pdata.Metrics) (*Batch, error) {
 			continue
 		}
 
+		compressed, compressionErr := bt.compression.Do(data)
+		if compressionErr != nil {
+			errs = multierr.Append(errs, consumererror.NewMetrics(compressionErr, export.Clone()))
+		}
+
+		record, e := bt.aggregator.Put(compressed, bm.partitioner(export))
+		if e != nil {
+			errs = multierr.Append(errs, consumererror.NewMetrics(e, export.Clone()))
+		}
+		if record != nil {
+			records = append(records, record)
+		}
+	}
+
+	for i := 0; i < len(records); i++ {
+		data := records[i]
 		if err := bt.AddRecord(data, bm.partitioner(export)); err != nil {
 			errs = multierr.Append(errs, consumererror.NewMetrics(err, export.Clone()))
 		}

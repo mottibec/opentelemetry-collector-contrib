@@ -20,21 +20,25 @@ func TestAggregation(t *testing.T) {
 	a := batch.NewAggregator()
 	n := 500
 	wg.Add(n)
+	var aggregated []byte
+	var err error
 	for i := 0; i < n; i++ {
 		c := strconv.Itoa(i)
 		data := []byte("hello-" + c)
 		a.Put(data, c)
+		if err != nil {
+			t.Error(err)
+		}
 		wg.Done()
 	}
 	wg.Wait()
-	record, err := a.Drain()
+	aggregated, err = a.Drain()
 	if err != nil {
 		t.Error(err)
 	}
-
-	isAggregated := bytes.HasPrefix(record.Data, []byte{0xF3, 0x89, 0x9A, 0xC2})
+	isAggregated := bytes.HasPrefix(aggregated, []byte{0xF3, 0x89, 0x9A, 0xC2})
 	assert.True(t, isAggregated, "Must have aggregated the data")
-	records := extractRecords(record)
+	records := extractRecords(aggregated)
 	for i := 0; i < n; i++ {
 		c := strconv.Itoa(i)
 		found := false
@@ -48,8 +52,8 @@ func TestAggregation(t *testing.T) {
 	}
 }
 
-func extractRecords(entry *kinesis.PutRecordsRequestEntry) (out []*kinesis.PutRecordsRequestEntry) {
-	src := entry.Data[len(magicNumber) : len(entry.Data)-md5.Size]
+func extractRecords(data []byte) (out []*kinesis.PutRecordsRequestEntry) {
+	src := data[len(magicNumber) : len(data)-md5.Size]
 	dest := new(batch.AggregatedRecord)
 	err := proto.Unmarshal(src, dest)
 	if err != nil {

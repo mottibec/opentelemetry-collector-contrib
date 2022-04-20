@@ -1,7 +1,5 @@
 package batch
 
-import "github.com/aws/aws-sdk-go/service/kinesis"
-
 type noopAggregator struct {
 }
 
@@ -9,10 +7,11 @@ func NewNoopAggregator() Aggregator {
 	return &noopAggregator{}
 }
 
-func (a *noopAggregator) Drain() (*kinesis.PutRecordsRequestEntry, error) {
+func (a *noopAggregator) Drain() ([]byte, error) {
 	return nil, nil
 }
-func (a *noopAggregator) Put(data []byte, partitionKey string) {
+func (a *noopAggregator) Put(data []byte, partitionKey string) ([]byte, error) {
+	return data, nil
 }
 func (a *noopAggregator) IsRecordAggregative(data []byte, partitionKey string) bool {
 	return false
