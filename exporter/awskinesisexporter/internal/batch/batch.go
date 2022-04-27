@@ -74,6 +74,7 @@ func WithMaxRecordSize(size int) Option {
 			size = MaxRecordSize
 		}
 		bt.maxRecordSize = size
+		bt.aggregator.SetMaxRecordSize(size)
 	}
 }
 

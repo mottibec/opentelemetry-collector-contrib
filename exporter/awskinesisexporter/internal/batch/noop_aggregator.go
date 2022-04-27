@@ -6,7 +6,8 @@ type noopAggregator struct {
 func NewNoopAggregator() Aggregator {
 	return &noopAggregator{}
 }
-
+func (*noopAggregator) SetMaxRecordSize(size int) {
+}
 func (a *noopAggregator) Drain() ([]byte, error) {
 	return nil, nil
 }

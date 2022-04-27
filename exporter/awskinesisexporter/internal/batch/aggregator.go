@@ -15,6 +15,7 @@ const (
 )
 
 type Aggregator interface {
+	SetMaxRecordSize(size int)
 	Put(data []byte, partitionKey string) ([]byte, error)
 	Drain() ([]byte, error)
 }
@@ -23,19 +24,26 @@ type aggregator struct {
 	records       []*Record
 	partitionKeys []string
 	bytesCount    int
+	maxRecordSize int
 }
 
 func NewAggregator() Aggregator {
-	return &aggregator{}
+	return &aggregator{
+		maxRecordSize: maxRecordSize,
+	}
+}
+
+func (a *aggregator) SetMaxRecordSize(size int) {
+	a.maxRecordSize = size
 }
 
 func (a *aggregator) isRecordAggregative(data []byte, partitionKey string) bool {
-	return len(data)+len([]byte(partitionKey)) <= maxRecordSize
+	return len(data)+len([]byte(partitionKey)) <= a.maxRecordSize
 }
 
 func (a *aggregator) checkIfFull(data []byte, partitionKey string) bool {
 	bytesCount := len(data) + len([]byte(partitionKey))
-	return bytesCount+a.bytesCount+md5.Size+len(magicNumber)+partitionKeyIndexSize > maxRecordSize || len(a.records) >= maxAggregationCount
+	return bytesCount+a.bytesCount+md5.Size+len(magicNumber)+partitionKeyIndexSize > a.maxRecordSize || len(a.records) >= maxAggregationCount
 }
 
 func (a *aggregator) aggregate(data []byte, partitionKey string) {
